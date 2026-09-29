@@ -1,17 +1,70 @@
+name: Build Reel Bajar APK
 
-      - name: Build APK
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Extract project ZIP
         run: |
-          echo "Project directory: $PROJECT_DIR"
-          cd "$PROJECT_DIR"
+          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "*.zip" | head -n 1)
 
-          if [ ! -f "./gradlew" ]; then
-            echo "ERROR: gradlew नहीं मिला"
-            echo "Current directory:"
-            pwd
-            echo "Files:"
-            ls -la
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: ZIP file नहीं मिली"
             exit 1
           fi
 
+          echo "ZIP: $ZIP_FILE"
+          mkdir -p project
+          unzip -o "$ZIP_FILE" -d project
+
+      - name: Find Gradle project
+        run: |
+          GRADLEW=$(find project -type f -name "gradlew" | head -n 1)
+
+          if [ -z "$GRADLEW" ]; then
+            echo "ERROR: gradlew नहीं मिला"
+            echo "Project files:"
+            find project -maxdepth 4 -type f | head -100
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$GRADLEW")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Gradle project: $PROJECT_DIR"
+
+      - name: Build APK
+        run: |
+          cd "$PROJECT_DIR"
           chmod +x ./gradlew
           ./gradlew assembleDebug --no-daemon
+
+      - name: Find APK
+        run: |
+          APK=$(find "$PROJECT_DIR" -type f -name "*.apk" | head -n 1)
+
+          if [ -z "$APK" ]; then
+            echo "ERROR: APK नहीं मिली"
+            exit 1
+          fi
+
+          echo "APK मिली: $APK"
+          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Reel-Bajar-APK
+          path: ${{ env.APK_PATH }}
