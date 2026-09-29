@@ -17,16 +17,45 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Extract project ZIP
+        run: |
+          mkdir -p project
+
+          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "*.zip" | head -1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ZIP file नहीं मिला"
+            exit 1
+          fi
+
+          echo "Using ZIP: $ZIP_FILE"
+          unzip -o "$ZIP_FILE" -d project
+
       - name: Find Android project
         run: |
-          echo "Files in repository:"
-          find . -maxdepth 4 -type f | head -100
+          echo "Searching for Android Gradle project..."
 
-          PROJECT_DIR=$(find . -type f \( -name "build.gradle" -o -name "build.gradle.kts" \) | head -1 | xargs dirname)
+          SETTINGS=$(find project -type f \( \
+            -name "settings.gradle" \
+            -o -name "settings.gradle.kts" \
+          \) | head -1)
 
-          if [ -z "$PROJECT_DIR" ]; then
-            echo "Android Gradle project नहीं मिला"
-            exit 1
+          if [ -n "$SETTINGS" ]; then
+            PROJECT_DIR=$(dirname "$SETTINGS")
+          else
+            BUILD_FILE=$(find project -type f \( \
+              -name "build.gradle" \
+              -o -name "build.gradle.kts" \
+            \) | head -1)
+
+            if [ -z "$BUILD_FILE" ]; then
+              echo "Android Gradle project नहीं मिला"
+              echo "ZIP की files:"
+              find project -maxdepth 4 -type f | head -200
+              exit 1
+            fi
+
+            PROJECT_DIR=$(dirname "$BUILD_FILE")
           fi
 
           echo "PROJECT_DIR=$PROJECT_DIR"
@@ -39,7 +68,8 @@ jobs:
             chmod +x ./gradlew
             ./gradlew assembleDebug --no-daemon
           else
-            gradle assembleDebug --no-daemon
+            echo "gradlew नहीं मिला"
+            exit 1
           fi
 
       - name: Find APK
