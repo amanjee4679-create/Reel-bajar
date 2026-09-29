@@ -13,9 +13,24 @@ jobs:
 
       - name: Extract project ZIP
         run: |
+          rm -rf project
           mkdir -p project
-          unzip -o reel-bajar-build-ready.zip -d project
-          find project -maxdepth 4 -type f | head -100
+          unzip -q reel-bajar-build-ready.zip -d project
+
+      - name: Find Gradle project
+        run: |
+          GRADLEW=$(find project -type f -name gradlew -print -quit)
+
+          if [ -z "$GRADLEW" ]; then
+            echo "ERROR: gradlew नहीं मिला"
+            echo "Project files:"
+            find project -maxdepth 5 -type f | head -200
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$GRADLEW")
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          echo "Gradle project मिला: $PROJECT_DIR"
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -23,33 +38,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-
-      - name: Find Flutter project
-        run: |
-          FLUTTER_DIR=$(find project -type f -name pubspec.yaml -print -quit | xargs -r dirname)
-
-          if [ -z "$FLUTTER_DIR" ]; then
-            echo "Flutter project not found"
-            exit 1
-          fi
-
-          echo "FLUTTER_DIR=$FLUTTER_DIR" >> "$GITHUB_ENV"
-          echo "Flutter project: $FLUTTER_DIR"
-
       - name: Build APK
         run: |
-          cd "$FLUTTER_DIR"
-          flutter pub get
-          flutter build apk --debug
+          cd "$PROJECT_DIR"
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Find APK
+        run: |
+          find project -type f -name "*.apk" -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Reel-Bajar-APK
-          path: '**/build/app/outputs/flutter-apk/*.apk'
-
-          
+          name: reel-bajar-apk
+          path: |
+            project/**/build/outputs/apk/**/*.apk
+            project/**/build/outputs/apk/*.apk
+          if-no-files-found: error         
