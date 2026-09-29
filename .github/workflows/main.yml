@@ -1,4 +1,4 @@
-name: Build Reel Bajar  APK2
+name: Build Reel Bajar APK
 
 on:
   workflow_dispatch:
@@ -11,62 +11,36 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract project ZIP
+      - name: Find Android project
         run: |
-          rm -rf project
-          mkdir project
-          unzip -q reel-bajar-build-ready.zip -d project
-
-      - name: Find project folder
-        run: |
-          if find project -name pubspec.yaml -print -quit | grep -q .; then
-            PROJECT_DIR=$(dirname "$(find project -name pubspec.yaml -print -quit)")
-            echo "TYPE=flutter" >> $GITHUB_ENV
-          elif find project -name gradlew -print -quit | grep -q .; then
-            PROJECT_DIR=$(dirname "$(find project -name gradlew -print -quit)")
-            echo "TYPE=android" >> $GITHUB_ENV
-          else
-            echo "Android/Flutter project नहीं मिला"
-            find project -maxdepth 4 -type f | head -100
-            exit 1
+          PROJECT_DIR=$(dirname "$(find . -name settings.gradle -o -name settings.gradle.kts | head -n 1)")
+          if [ -z "$PROJECT_DIR" ] || [ "$PROJECT_DIR" = "." ]; then
+            PROJECT_DIR="."
           fi
-
           echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
-          echo "Project: $PROJECT_DIR"
+          echo "Android project: $PROJECT_DIR"
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
-      - name: Setup Flutter
-        if: env.TYPE == 'flutter'
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-      - name: Build Flutter APK
-        if: env.TYPE == 'flutter'
-        run: |
-          cd "$PROJECT_DIR"
-          flutter pub get
-          flutter build apk --debug
-
-      - name: Build Android APK
-        if: env.TYPE == 'android'
+      - name: Build APK
         run: |
           cd "$PROJECT_DIR"
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug
 
       - name: Find APK
         run: |
-          find project -type f -name "*.apk" -print
+          find "$PROJECT_DIR" -type f -name "*.apk" -print
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: reel-bajar-apk
-          path: project/**/build/outputs/apk/**/*.apk
-          if-no-files-found: error     
+          name: Reel-Bajar-APK
+          path: "**/build/outputs/apk/**/*.apk"
