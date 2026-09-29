@@ -14,23 +14,25 @@ jobs:
       - name: Extract project ZIP
         run: |
           rm -rf project
-          mkdir -p project
+          mkdir project
           unzip -q reel-bajar-build-ready.zip -d project
 
-      - name: Find Gradle project
+      - name: Find project folder
         run: |
-          GRADLEW=$(find project -type f -name gradlew -print -quit)
-
-          if [ -z "$GRADLEW" ]; then
-            echo "ERROR: gradlew नहीं मिला"
-            echo "Project files:"
-            find project -maxdepth 5 -type f | head -200
+          if find project -name pubspec.yaml -print -quit | grep -q .; then
+            PROJECT_DIR=$(dirname "$(find project -name pubspec.yaml -print -quit)")
+            echo "TYPE=flutter" >> $GITHUB_ENV
+          elif find project -name gradlew -print -quit | grep -q .; then
+            PROJECT_DIR=$(dirname "$(find project -name gradlew -print -quit)")
+            echo "TYPE=android" >> $GITHUB_ENV
+          else
+            echo "Android/Flutter project नहीं मिला"
+            find project -maxdepth 4 -type f | head -100
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$GRADLEW")
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Gradle project मिला: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          echo "Project: $PROJECT_DIR"
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -38,7 +40,21 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Build APK
+      - name: Setup Flutter
+        if: env.TYPE == 'flutter'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Build Flutter APK
+        if: env.TYPE == 'flutter'
+        run: |
+          cd "$PROJECT_DIR"
+          flutter pub get
+          flutter build apk --debug
+
+      - name: Build Android APK
+        if: env.TYPE == 'android'
         run: |
           cd "$PROJECT_DIR"
           chmod +x gradlew
@@ -52,7 +68,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: reel-bajar-apk
-          path: |
-            project/**/build/outputs/apk/**/*.apk
-            project/**/build/outputs/apk/*.apk
-          if-no-files-found: error         
+          path: project/**/build/outputs/apk/**/*.apk
+          if-no-files-found: error     
