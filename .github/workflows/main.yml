@@ -22,23 +22,29 @@ jobs:
           mkdir project
           unzip -q reel-bajar-build-ready.zip -d project
 
-      - name: Find Gradle project
+      - name: Install Gradle
         run: |
-          GRADLEW=$(find project -type f -name "gradlew" | head -n 1)
-          if [ -z "$GRADLEW" ]; then
-            echo "gradlew नहीं मिला"
+          wget -q https://services.gradle.org/distributions/gradle-8.7-bin.zip
+          unzip -q gradle-8.7-bin.zip -d "$HOME"
+          echo "$HOME/gradle-8.7/bin" >> "$GITHUB_PATH"
+
+      - name: Find Android project
+        run: |
+          ANDROID_DIR=$(find project -type f -name "settings.gradle*" -printf '%h\n' | head -n 1)
+
+          if [ -z "$ANDROID_DIR" ]; then
+            echo "Android project नहीं मिला"
             find project -maxdepth 5 -type f | head -100
             exit 1
           fi
-          ANDROID_DIR=$(dirname "$GRADLEW")
+
           echo "ANDROID_DIR=$ANDROID_DIR" >> "$GITHUB_ENV"
           echo "Android project: $ANDROID_DIR"
 
       - name: Build APK
         run: |
           cd "$ANDROID_DIR"
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          gradle assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
