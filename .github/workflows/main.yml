@@ -15,19 +15,7 @@ jobs:
         run: |
           mkdir -p project
           unzip -o reel-bajar-build-ready.zip -d project
-          echo "Extracted files:"
-          find project -maxdepth 3 -type f | head -100
-
-      - name: Find Android project
-        run: |
-          GRADLEW=$(find project -type f -name gradlew -print -quit)
-          if [ -z "$GRADLEW" ]; then
-            echo "gradlew not found"
-            exit 1
-          fi
-          ANDROID_DIR=$(dirname "$GRADLEW")
-          echo "ANDROID_DIR=$ANDROID_DIR" >> "$GITHUB_ENV"
-          echo "Android project: $ANDROID_DIR"
+          find project -maxdepth 4 -type f | head -100
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -35,14 +23,33 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Find Flutter project
+        run: |
+          FLUTTER_DIR=$(find project -type f -name pubspec.yaml -print -quit | xargs -r dirname)
+
+          if [ -z "$FLUTTER_DIR" ]; then
+            echo "Flutter project not found"
+            exit 1
+          fi
+
+          echo "FLUTTER_DIR=$FLUTTER_DIR" >> "$GITHUB_ENV"
+          echo "Flutter project: $FLUTTER_DIR"
+
       - name: Build APK
         run: |
-          cd "$ANDROID_DIR"
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          cd "$FLUTTER_DIR"
+          flutter pub get
+          flutter build apk --debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Reel-Bajar-APK
-          path: '**/build/outputs/apk/**/*.apk'
+          path: '**/build/app/outputs/flutter-apk/*.apk'
+
+          
