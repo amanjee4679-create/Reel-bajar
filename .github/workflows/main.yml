@@ -19,52 +19,20 @@ jobs:
 
       - name: Extract project ZIP
         run: |
-          ZIP_FILE=$(find . -maxdepth 2 -type f -iname "*.zip" | head -n 1)
+          mkdir -p project/reel_build
+          unzip -q reel-bajar-build-ready.zip -d project/reel_build
 
-          if [ -z "$ZIP_FILE" ]; then
-            echo "ERROR: ZIP file नहीं मिली"
-            exit 1
-          fi
-
-          echo "ZIP: $ZIP_FILE"
-          mkdir -p project
-          unzip -o "$ZIP_FILE" -d project
-
-      - name: Find Gradle project
-        run: |
-          GRADLEW=$(find project -type f -name "gradlew" | head -n 1)
-
-          if [ -z "$GRADLEW" ]; then
-            echo "ERROR: gradlew नहीं मिला"
-            echo "Project files:"
-            find project -maxdepth 4 -type f | head -100
-            exit 1
-          fi
-
-          PROJECT_DIR=$(dirname "$GRADLEW")
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Gradle project: $PROJECT_DIR"
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
 
       - name: Build APK
-        run: |
-          cd "$PROJECT_DIR"
-          chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon
-
-      - name: Find APK
-        run: |
-          APK=$(find "$PROJECT_DIR" -type f -name "*.apk" | head -n 1)
-
-          if [ -z "$APK" ]; then
-            echo "ERROR: APK नहीं मिली"
-            exit 1
-          fi
-
-          echo "APK मिली: $APK"
-          echo "APK_PATH=$APK" >> "$GITHUB_ENV"
+        working-directory: project/reel_build/android
+        run: gradle assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Reel-Bajar-APK
-          path: ${{ env.APK_PATH }}
+          name: reel-bajar-debug-apk
+          path: project/reel_build/android/app/build/outputs/apk/debug/*.apk
